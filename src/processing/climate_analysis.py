@@ -1,212 +1,226 @@
+
 import json
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, date, timedelta, timezone
 
+
+# ==================================================
+# 1. CONFIGURAÇÕES
+# ==================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-LOCATION_FILE = (
-    PROJECT_ROOT / "data" / "input" / "location.json"
-)
-
 PROCESSED_DATA_FOLDER = (
-    PROJECT_ROOT / "data" / "processed" / "nasa"
-)
-
-PROCESSED_DATA_FOLDER_1 = (
     PROJECT_ROOT / "data" / "processed" / "climate"
 )
 
-def load_location_config():
-    with open(LOCATION_FILE, "r", encoding="utf-8") as file:
-        config = json.load(file)
 
-    return config
+# ==================================================
+# 2. GERAR O CALENDÁRIO DO PERÍODO
+# ==================================================
 
-def load_cleaned_data(config=None):
-    if config is None:
-        config = load_location_config()
-  
-    period = config["analysis_period"]
-    
-    # Construir o nome do ficheiro
-    filename = (
-        f"nasa_{config['field_id']}_"
-        f"{period['start_date']}_"
-        f"{period['end_date']}_cleaned.json"
-    )
+def generate_analysis_dates(start_date, end_date):
 
-    processed_file =  PROCESSED_DATA_FOLDER / filename
-    
-    with open(processed_file, "r", encoding="utf-8") as file:
-        data = json.load(file)
-        
-    return data
+    start = datetime.strptime(
+        start_date, "%Y-%m-%d"
+    ).date()
 
-def calculate_total_precipitation(data: dict) -> dict:
-    """
-    Função auxiliar para calcular a soma total de uma variável climática.
-    """
-    
+    end = datetime.strptime(
+        end_date, "%Y-%m-%d"
+    ).date()
+
+    if start > end:
+        raise ValueError(
+            "A data inicial não pode ser posterior à data final."
+        )
+
+    dates = []
+    current_date = start
+
+    while current_date <= end:
+
+        dates.append(
+            current_date.strftime("%Y%m%d")
+        )
+
+        current_date += timedelta(days=1)
+
+    return dates
+
+
+# ==================================================
+# 3. CALCULAR PRECIPITAÇÃO
+# ==================================================
+
+def calculate_total_precipitation(data, expected_days):
+
     total = 0.0
     days_with_data = 0
-    days_without_data = 0
 
     for record in data:
+
         value = record.get("PRECTOTCORR")
 
         if value is not None:
             total += value
             days_with_data += 1
-        else:
-            days_without_data += 1
+
+    days_without_data = expected_days - days_with_data
 
     return {
-        f"Total_Precipitation": total,
-        f"Days_with_data": days_with_data,
-        f"Days_without_data": days_without_data
+        "Total_Precipitation": round(total, 2) if days_with_data > 0 else None,
+        "Days_with_data": days_with_data,
+        "Days_without_data": days_without_data
     }
-    
-def calculate_average_temperature(data: dict) -> dict:
-    """
-    Função auxiliar para calcular a média de uma variável climática.
-    """
+
+
+# ==================================================
+# 4. CALCULAR TEMPERATURA MÉDIA
+# ==================================================
+
+def calculate_average_temperature(data, expected_days):
 
     total = 0.0
     days_with_data = 0
-    days_without_data = 0
 
     for record in data:
+
         value = record.get("T2M")
 
         if value is not None:
             total += value
             days_with_data += 1
-        else:
-            days_without_data += 1
 
-    average = total / days_with_data if days_with_data > 0 else None
+    average = (
+        total / days_with_data
+        if days_with_data > 0
+        else None
+    )
 
     return {
-        f"Average_Temperature": round(average, 2) if average is not None else None,
-        f"Days_with_data": days_with_data,
-        f"Days_without_data": days_without_data
+        "Average_Temperature": round(average, 2) if average is not None else None,
+        "Days_with_data": days_with_data,
+        "Days_without_data": expected_days - days_with_data
     }
-    
-def calculate_temperature_extremes(data: dict) -> dict:
-    """
-    Função auxiliar para calcular os extremos de temperatura.
-    """
+
+
+# ==================================================
+# 5. CALCULAR EXTREMOS DE TEMPERATURA
+# ==================================================
+
+def calculate_temperature_extremes(data):
 
     max_temp = []
     min_temp = []
 
     for record in data:
+
         min_value = record.get("T2M_MIN")
         max_value = record.get("T2M_MAX")
 
         if min_value is not None:
             min_temp.append(min_value)
+
         if max_value is not None:
             max_temp.append(max_value)
-            
+
     lowest_temp = min(min_temp) if min_temp else None
     highest_temp = max(max_temp) if max_temp else None
 
     return {
-        f"Max_Temperature": highest_temp,
-        f"Min_Temperature": lowest_temp,
-        f"Days_with_min_data": len(min_temp),
-        f"Days_with_max_data": len(max_temp)
+        "Max_Temperature": highest_temp,
+        "Min_Temperature": lowest_temp,
+        "Days_with_min_data": len(min_temp),
+        "Days_with_max_data": len(max_temp)
     }
-    
-def calculate_average_humidity(data: dict) -> dict:
-    """
-    Função auxiliar para calcular a média de uma variável climática.
-    """
+
+
+# ==================================================
+# 6. CALCULAR HUMIDADE MÉDIA
+# ==================================================
+
+def calculate_average_humidity(data, expected_days):
 
     total = 0.0
     days_with_data = 0
-    days_without_data = 0
 
     for record in data:
+
         value = record.get("RH2M")
 
         if value is not None:
             total += value
             days_with_data += 1
-        else:
-            days_without_data += 1
 
-    average = total / days_with_data if days_with_data > 0 else None
+    average = (
+        total / days_with_data
+        if days_with_data > 0
+        else None
+    )
 
     return {
-        f"Average_Humidity": round(average, 2) if average is not None else None,
-        f"Days_with_data": days_with_data,
-        f"Days_without_data": days_without_data
+        "Average_Humidity": round(average, 2) if average is not None else None,
+        "Days_with_data": days_with_data,
+        "Days_without_data": expected_days - days_with_data
     }
-    
-def calculate_rainy_days(data: dict) -> dict:
-    """
-    Função auxiliar para calcular o número de dias chuvosos.
-    """
+
+
+# ==================================================
+# 7. CALCULAR DIAS CHUVOSOS
+# ==================================================
+
+def calculate_rainy_days(data, expected_days):
 
     rainy_days_count = 0
     days_without_rain = 0
-    days_without_data = 0
+    days_with_data = 0
 
     for record in data:
+
         value = record.get("PRECTOTCORR")
 
         if value is not None:
+
+            days_with_data += 1
+
             if value > 0:
                 rainy_days_count += 1
+
             else:
                 days_without_rain += 1
-        else:
-            days_without_data += 1
+
+    days_without_data = expected_days - days_with_data
 
     return {
-        f"Rainy_Days": rainy_days_count,
-        f"Days_without_rain": days_without_rain,
-        f"Days_without_data": days_without_data
+        "Rainy_Days": rainy_days_count,
+        "Days_without_rain": days_without_rain,
+        "Days_without_data": days_without_data
     }
-    
-def calculate_data_coverage(data):
-    total_days = len(data)
-    
-    variables = ["PRECTOTCORR", "T2M", "T2M_MAX", "T2M_MIN", "RH2M"]
-    
-    coverage = {}
-    
-    for variable in variables:
-        available_days = sum(1 for record in data if record.get(variable) is not None)
-        
-        missing_days = total_days - available_days
-        
-        percentage = (available_days / total_days) * 100 if total_days > 0 else 0
-        
-        coverage[variable] = {
-            "available_days": available_days,
-            "missing_days": missing_days,
-            "coverage_percentage": round(percentage, 2)
-        }
 
-    return {
-        "total_days": total_days,
-        "variables_coverage": coverage
-    }
-    
-def analyze_climate(data: dict) -> dict:
-    """
-    Função principal para analisar os dados climáticos.
-    """
-    
-    precipitation_summary = calculate_total_precipitation(data)
-    temperature_summary = calculate_average_temperature(data)
+
+# ==================================================
+# 8. EXECUTAR ANÁLISE CLIMÁTICA
+# ==================================================
+
+def analyze_climate(data, expected_days):
+
+    precipitation_summary = calculate_total_precipitation(
+        data, expected_days
+    )
+
+    temperature_summary = calculate_average_temperature(
+        data, expected_days
+    )
+
     temperature_extremes = calculate_temperature_extremes(data)
-    humidity_summary = calculate_average_humidity(data)
-    rainy_summary = calculate_rainy_days(data)
+
+    humidity_summary = calculate_average_humidity(
+        data, expected_days
+    )
+
+    rainy_summary = calculate_rainy_days(
+        data, expected_days
+    )
 
     return {
         "Precipitation": precipitation_summary,
@@ -217,60 +231,82 @@ def analyze_climate(data: dict) -> dict:
     }
 
 
-def save_climate_analysis():
-    config = load_location_config()
+# ==================================================
+# 9. PREPARAR A ANÁLISE COMPLETA
+# ==================================================
 
-    # Carregar dados limpos
-    data = load_cleaned_data(config)
+def build_climate_result(
+    data,
+    field_id,
+    field_name,
+    location,
+    start_date,
+    end_date
+):
 
-    # Executar análise climática
-    climate_results = analyze_climate(data)
-
-    # Identificar o período analisado
-    period = config["analysis_period"]
-
-    start_date = datetime.strptime(
-        period["start_date"], "%Y-%m-%d"
+    # Gerar calendário esperado
+    expected_dates = generate_analysis_dates(
+        start_date,
+        end_date
     )
 
-    end_date = datetime.strptime(
-        period["end_date"], "%Y-%m-%d"
+    expected_dates_set = set(expected_dates)
+    expected_days = len(expected_dates)
+
+    # Verificar estrutura dos dados limpos
+    if not isinstance(data, list):
+        raise ValueError(
+            "Os dados limpos devem estar organizados numa lista."
+        )
+
+    # Utilizar apenas registos dentro do período solicitado
+    filtered_data = [
+        record for record in data
+        if record.get("date") in expected_dates_set
+    ]
+
+    # Executar cálculos
+    climate_results = analyze_climate(
+        filtered_data,
+        expected_days
     )
 
-    expected_days = (end_date - start_date).days + 1
-
-    # Obter os contadores já calculados pelos indicadores
     precipitation = climate_results["Precipitation"]
     temperature = climate_results["Temperature"]
     temperature_extremes = climate_results["Temperature_Extremes"]
     humidity = climate_results["Humidity"]
 
-    # Organizar a qualidade dos dados por variável
+    # Organizar qualidade dos dados
     variables_quality = {
         "PRECTOTCORR": {
             "available_days": precipitation["Days_with_data"],
             "missing_days": precipitation["Days_without_data"]
         },
+
         "T2M": {
             "available_days": temperature["Days_with_data"],
             "missing_days": temperature["Days_without_data"]
         },
+
         "T2M_MAX": {
             "available_days": temperature_extremes["Days_with_max_data"],
             "missing_days": expected_days - temperature_extremes["Days_with_max_data"]
         },
+
         "T2M_MIN": {
             "available_days": temperature_extremes["Days_with_min_data"],
             "missing_days": expected_days - temperature_extremes["Days_with_min_data"]
         },
+
         "RH2M": {
             "available_days": humidity["Days_with_data"],
             "missing_days": humidity["Days_without_data"]
         }
     }
 
-    # Calcular a cobertura de cada variável
+    # Calcular cobertura de cada variável
     for variable, quality in variables_quality.items():
+
         available = quality["available_days"]
 
         quality["coverage_percentage"] = round(
@@ -278,7 +314,7 @@ def save_climate_analysis():
             2
         ) if expected_days > 0 else 0
 
-    # Determinar o estado geral da qualidade dos dados
+    # Determinar qualidade geral
     coverage_values = [
         item["coverage_percentage"]
         for item in variables_quality.values()
@@ -286,16 +322,24 @@ def save_climate_analysis():
 
     if all(value == 100 for value in coverage_values):
         quality_status = "complete"
+
     elif any(value > 0 for value in coverage_values):
         quality_status = "partial"
+
     else:
         quality_status = "unavailable"
 
     # Construir resposta padronizada
     result = {
+
         "api": {
             "name": "Agro Intelligence",
             "version": "1.0.0"
+        },
+
+        "field": {
+            "field_id": field_id,
+            "field_name": field_name
         },
 
         "metadata": {
@@ -305,11 +349,11 @@ def save_climate_analysis():
             "generated_at": datetime.now(timezone.utc).isoformat()
         },
 
-        "location": config["location"],
+        "location": location,
 
         "analysis_period": {
-            "start_date": period["start_date"],
-            "end_date": period["end_date"],
+            "start_date": start_date,
+            "end_date": end_date,
             "total_days": expected_days
         },
 
@@ -320,6 +364,7 @@ def save_climate_analysis():
         },
 
         "indicators": {
+
             "precipitation": {
                 "total": precipitation["Total_Precipitation"],
                 "unit": "mm",
@@ -347,21 +392,80 @@ def save_climate_analysis():
         }
     }
 
-    # Guardar resultado
-    filename = (
-        f"climate_{config['field_id']}_"
-        f"{period['start_date']}_"
-        f"{period['end_date']}.json"
+    return result
+
+
+# ==================================================
+# 10. GUARDAR RESULTADO DA ANÁLISE
+# ==================================================
+
+def save_climate_analysis(
+    cleaned_file,
+    field_id,
+    field_name,
+    location,
+    start_date,
+    end_date
+):
+
+    cleaned_file = Path(cleaned_file)
+
+    if not cleaned_file.exists():
+        raise FileNotFoundError(
+            f"Ficheiro limpo não encontrado: {cleaned_file}"
+        )
+
+    # Carregar dados limpos
+    with open(
+        cleaned_file,
+        "r",
+        encoding="utf-8"
+    ) as file:
+
+        data = json.load(file)
+
+    # Construir resultado climático
+    result = build_climate_result(
+        data=data,
+        field_id=field_id,
+        field_name=field_name,
+        location=location,
+        start_date=start_date,
+        end_date=end_date
     )
 
-    output_file = PROCESSED_DATA_FOLDER_1 / filename
+    # Criar identificador seguro para o nome do ficheiro
+    safe_field_id = "".join(
+        char for char in field_id
+        if char.isalnum() or char in ("-", "_")
+    )
 
-    PROCESSED_DATA_FOLDER_1.mkdir(
+    if not safe_field_id:
+        raise ValueError(
+            "Identificador da machamba inválido."
+        )
+
+    # Construir nome do ficheiro
+    filename = (
+        f"climate_{safe_field_id}_"
+        f"{start_date}_{end_date}.json"
+    )
+
+    output_file = PROCESSED_DATA_FOLDER / filename
+
+    # Criar pasta de destino
+    PROCESSED_DATA_FOLDER.mkdir(
         parents=True,
         exist_ok=True
     )
 
-    with open(output_file, "w", encoding="utf-8") as file:
+    # Guardar resultado
+    with open(
+        output_file,
+        "w",
+        encoding="utf-8"
+    ) as file:
+
         json.dump(
             result,
             file,
@@ -371,12 +475,10 @@ def save_climate_analysis():
         )
 
     print("\nANÁLISE CLIMÁTICA CONCLUÍDA!")
-    print(f"Localização: {config['location']}")
-    print(f"Período: {period['start_date']} até {period['end_date']}")
-    print(f"Qualidade dos dados: {quality_status}")
+    print(f"Machamba: {field_name}")
+    print(f"Período: {start_date} até {end_date}")
+    print(f"Qualidade dos dados: {result['data_quality']['status']}")
     print(f"Ficheiro guardado em: {output_file}")
 
-    return output_file
-
-if __name__ == "__main__":
-    save_climate_analysis()
+    # Devolver os resultados para a API
+    return result
