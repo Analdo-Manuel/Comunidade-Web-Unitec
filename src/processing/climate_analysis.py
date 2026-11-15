@@ -11,17 +11,22 @@ PROCESSED_DATA_FOLDER = (
     PROJECT_ROOT / "data" / "processed" / "nasa"
 )
 
-def get_processed_file():
-    """
-    Função auxiliar para obter o caminho do ficheiro de dados e dos processados da NASA.
-    """
+PROCESSED_DATA_FOLDER_1 = (
+    PROJECT_ROOT / "data" / "processed" / "climate"
+)
 
-    # Ler a configuração da machamba
+def load_location_config():
     with open(LOCATION_FILE, "r", encoding="utf-8") as file:
         config = json.load(file)
 
-    period = config["analysis_period"]
+    return config
 
+def load_cleaned_data(config=None):
+    if config is None:
+        config = load_location_config()
+  
+    period = config["analysis_period"]
+    
     # Construir o nome do ficheiro
     filename = (
         f"nasa_{config['field_id']}_"
@@ -81,7 +86,7 @@ def calculate_average_temperature(data: dict) -> dict:
     average = total / days_with_data if days_with_data > 0 else None
 
     return {
-        f"Average_Temperature": average,
+        f"Average_Temperature": round(average, 2) if average is not None else None,
         f"Days_with_data": days_with_data,
         f"Days_without_data": days_without_data
     }
@@ -134,7 +139,7 @@ def calculate_average_humidity(data: dict) -> dict:
     average = total / days_with_data if days_with_data > 0 else None
 
     return {
-        f"Average_Humidity": average,
+        f"Average_Humidity": round(average, 2) if average is not None else None,
         f"Days_with_data": days_with_data,
         f"Days_without_data": days_without_data
     }
@@ -170,11 +175,11 @@ def analyze_climate(data: dict) -> dict:
     Função principal para analisar os dados climáticos.
     """
     
-    precipitation_summary = calculate_total_precipitation(processed_data)
-    temperature_summary = calculate_average_temperature(processed_data)
-    temperature_extremes = calculate_temperature_extremes(processed_data)
-    humidity_summary = calculate_average_humidity(processed_data)
-    rainy_summary = calculate_rainy_days(processed_data)
+    precipitation_summary = calculate_total_precipitation(data)
+    temperature_summary = calculate_average_temperature(data)
+    temperature_extremes = calculate_temperature_extremes(data)
+    humidity_summary = calculate_average_humidity(data)
+    rainy_summary = calculate_rainy_days(data)
 
     return {
         "Precipitation": precipitation_summary,
@@ -184,10 +189,41 @@ def analyze_climate(data: dict) -> dict:
         "Rainy_Days": rainy_summary
     }
     
-if __name__ == "__main__":
-    processed_data = get_processed_file()
+def save_climate_analysis(): 
+    config = load_location_config()
     
-    results = analyze_climate(processed_data)
+    data = load_cleaned_data(config)
+    
+    climate_results = analyze_climate(data)
+    
+    result = {
+        "field": {
+            "field_id": config["field_id"],
+            "field_name": config["field_name"]
+        },
+        
+        "location": config["location"],
+        "analysis_period": config["analysis_period"],
+        "climate_indicators": climate_results
+    }
+    
+    # Construir o nome do ficheiro
+    filename = (
+        f"climate_{config['field_id']}_"
+        f"{config['analysis_period']['start_date']}_"
+        f"{config['analysis_period']['end_date']}.json"
+    )
+    
+    output_file = PROCESSED_DATA_FOLDER_1 / filename
+    
+    PROCESSED_DATA_FOLDER_1.mkdir(parents=True, exist_ok=True)
+    
+    with open(output_file, "w", encoding="utf-8") as file:
+        json.dump(result, file, ensure_ascii=False, indent=4)
+        
+    print(f"\nANALISE CLIMATICA CONCLUIDA COM SUCESSO!")
+    print(f"Fazenda: {config['field_name']}")
+    print(f"Ficheiro guardado em: {output_file}")
 
-    for category, summary in results.items():
-        print(f"{category}: {summary}")
+if __name__ == "__main__":
+    save_climate_analysis()
