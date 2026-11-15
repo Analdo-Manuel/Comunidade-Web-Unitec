@@ -9,16 +9,6 @@ from datetime import datetime, timedelta
 # 1. CONFIGURAÇÕES
 # ==================================================
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-LOCATION_FILE = (
-    PROJECT_ROOT / "data" / "input" / "location.json"
-)
-
-RAW_DATA_FOLDER = (
-    PROJECT_ROOT / "data" / "raw" / "nasa"
-)
-
 EXPECTED_PARAMETERS = [
     "PRECTOTCORR",
     "T2M",
@@ -62,31 +52,26 @@ def generate_expected_dates(start_date, end_date):
 
 
 # ==================================================
-# 3. VALIDAR OS DADOS
+# 3. VALIDAR OS DADOS NASA
 # ==================================================
 
-def validate_nasa_data():
+def validate_nasa_data(
+    raw_file,
+    start_date,
+    end_date,
+    field_name="Não identificado"
+):
+
+    # Converter o caminho recebido para Path
+    raw_file = Path(raw_file)
 
     errors = 0
     warnings = 0
 
-    # Ler a configuração da machamba
-    with open(LOCATION_FILE, "r", encoding="utf-8") as file:
-        config = json.load(file)
+    variable_results = {}
 
-    period = config["analysis_period"]
-
-    # Construir o nome do ficheiro NASA
-    filename = (
-        f"nasa_{config['field_id']}_"
-        f"{period['start_date']}_"
-        f"{period['end_date']}.json"
-    )
-
-    raw_file = RAW_DATA_FOLDER / filename
-
+    # Verificar se o ficheiro existe
     if not raw_file.exists():
-
         raise FileNotFoundError(
             f"Ficheiro não encontrado: {raw_file}"
         )
@@ -105,12 +90,14 @@ def validate_nasa_data():
     print("          NASA DATA VALIDATION")
     print("======================================")
 
-    print(f"\nMachamba: {config['field_name']}")
-    print(f"Ficheiro: {filename}")
+    print(f"\nMachamba: {field_name}")
+    print(f"Ficheiro: {raw_file.name}")
 
     # Verificar estrutura principal
     if not isinstance(data, dict):
-        raise ValueError("O JSON não contém um objecto válido.")
+        raise ValueError(
+            "O JSON não contém um objecto válido."
+        )
 
     properties = data.get("properties", {})
     parameters = properties.get("parameter", {})
@@ -125,13 +112,18 @@ def validate_nasa_data():
 
     # Gerar calendário esperado
     expected_dates = generate_expected_dates(
-        period["start_date"],
-        period["end_date"]
+        start_date,
+        end_date
     )
 
-    print(f"\nPeríodo: {period['start_date']} até {period['end_date']}")
+    print(
+        f"\nPeríodo: {start_date} até {end_date}"
+    )
+
     print(f"Dias esperados: {len(expected_dates)}")
     print(f"Valor de preenchimento: {fill_value}")
+
+    expected_dates_set = set(expected_dates)
 
     # Verificar cada variável
     for variable in EXPECTED_PARAMETERS:
@@ -141,7 +133,14 @@ def validate_nasa_data():
         if variable not in parameters:
 
             print("[ERRO] Variável não encontrada.")
+
             errors += 1
+
+            variable_results[variable] = {
+                "status": "error",
+                "reason": "Variável não encontrada."
+            }
+
             continue
 
         daily_values = parameters[variable]
@@ -149,18 +148,24 @@ def validate_nasa_data():
         if not isinstance(daily_values, dict):
 
             print("[ERRO] Estrutura diária inválida.")
+
             errors += 1
+
+            variable_results[variable] = {
+                "status": "error",
+                "reason": "Estrutura diária inválida."
+            }
+
             continue
 
         received_dates = set(daily_values.keys())
-        expected_dates_set = set(expected_dates)
 
-        # Datas que deveriam existir, mas não existem
+        # Datas em falta
         missing_dates = (
             expected_dates_set - received_dates
         )
 
-        # Datas recebidas fora do período solicitado
+        # Datas fora do período
         unexpected_dates = (
             received_dates - expected_dates_set
         )
@@ -187,32 +192,55 @@ def validate_nasa_data():
         print(f"Valores ausentes: {missing_values}")
         print(f"Valores inválidos: {invalid_values}")
 
-        # Classificar os resultados
+        # Classificar resultados
+        variable_status = "valid"
+
         if missing_dates:
             print("[AVISO] Existem datas sem registos.")
             warnings += 1
+            variable_status = "warning"
 
         if unexpected_dates:
             print("[AVISO] Existem datas fora do período.")
             warnings += 1
+            variable_status = "warning"
 
         if missing_values:
             print("[AVISO] Existem valores de preenchimento.")
             warnings += 1
+            variable_status = "warning"
 
         if invalid_values:
             print("[ERRO] Existem valores inválidos.")
             errors += 1
+            variable_status = "error"
 
-        if (
-            not missing_dates
-            and not unexpected_dates
-            and not missing_values
-            and not invalid_values
-        ):
+        if variable_status == "valid":
             print("[OK] Variável validada.")
 
-    # Resultado final
+        # Guardar resultado individual da variável
+        variable_results[variable] = {
+            "status": variable_status,
+            "records_received": len(daily_values),
+            "missing_dates": len(missing_dates),
+            "unexpected_dates": len(unexpected_dates),
+            "missing_values": missing_values,
+            "invalid_values": invalid_values
+        }
+
+    # ==================================================
+    # 4. RESULTADO FINAL
+    # ==================================================
+
+    if errors > 0:
+        overall_status = "error"
+
+    elif warnings > 0:
+        overall_status = "warning"
+
+    else:
+        overall_status = "valid"
+
     print("\n======================================")
     print("             RESULTADO")
     print("======================================")
@@ -220,25 +248,17 @@ def validate_nasa_data():
     print(f"Total de erros: {errors}")
     print(f"Total de avisos: {warnings}")
 
-    if errors > 0:
-
-        print("\nRESULTADO: EXISTEM ERROS.")
-
-    elif warnings > 0:
-
-        print("\nRESULTADO: EXISTEM AVISOS.")
-
-    else:
-
-        print("\nRESULTADO: DADOS VALIDADOS COM SUCESSO.")
+    print(f"\nRESULTADO: {overall_status.upper()}")
 
     print("\nO ficheiro original permanece inalterado.")
 
+    # Devolver relatório para os próximos módulos
+    validation_result = {
+        "status": overall_status,
+        "total_errors": errors,
+        "total_warnings": warnings,
+        "expected_days": len(expected_dates),
+        "variables": variable_results
+    }
 
-# ==================================================
-# 4. EXECUTAR O PROGRAMA
-# ==================================================
-
-if __name__ == "__main__":
-
-    validate_nasa_data()
+    return validation_result
