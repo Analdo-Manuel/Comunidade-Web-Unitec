@@ -91,7 +91,15 @@ def clear_parameters(data: dict):
             "Estrutura diária dos parâmetros inválida."
         )
 
-    dates = sorted(first_parameter.keys())
+    dates = sorted(
+        set().union(
+            *[
+                set(values.keys())
+                for values in parameters.values()
+                if isinstance(values, dict)
+            ]
+        )
+    )
 
     cleaned_data = []
 

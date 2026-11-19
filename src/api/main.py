@@ -1,50 +1,58 @@
-from fastapi import FastAPI
-from src.api.schemas import ClimateAnalysisRequest, ClimateAnalysisResponse
+
+from fastapi import FastAPI, HTTPException
+
+from src.api.schemas import ( ClimateAnalysisRequest, ClimateAnalysisResponse )
+
+from src.processing.climate_service import run_climate_analysis
+
+
+contador = 0
 
 app = FastAPI(
     title="Agro Intelligence API",
-    description="API para processamento de dados ambientais.",
+    description="API para recolha e análise de dados ambientais.",
     version="1.0.0"
 )
 
+
 @app.get("/")
-async def root():
-    return {"message": "Agro Intelligence API is running."}
+def home():
+    return {
+        "message": "Agro Intelligence API está activa.",
+        "version": "1.0.0",
+        "status": "online"
+    }
+
 
 @app.get("/health")
-async def health_check():
+def health_check():
     return {
-         "status": "healthy",
+        "status": "healthy",
         "service": "Agro Intelligence API"
-        }
-    
-@app.get("/calculo/{param}")
-async def calculo(param: str):
-    result = f"Processed {int(param) + 1}"
-    return {"param": param, "result": result}
-
-@app.get("/climate")
-async def climate(lon: float, lat: float):
-    return {"longitude": lon, "latitude": lat, "climate_data": "Sample climate data based on coordinates."}
-
-@app.post("/api/v1/climate/analyze",       response_model=ClimateAnalysisResponse)
-async def climate_analysis(request: ClimateAnalysisRequest):
-    return {
-        "message": "Pedido recebido com sucesso.",
-
-        "field_id": request.field_id,
-        "field_name": request.field_name,
-
-        "location": {
-            "country": request.location.country,
-            "province": request.location.province,
-            "municipality": request.location.municipality,
-            "latitude": request.location.latitude,
-            "longitude": request.location.longitude
-        },
-
-        "analysis_period": {
-            "start_date": request.analysis_period.start_date,
-            "end_date": request.analysis_period.end_date
-        }
     }
+
+
+@app.post("/api/v1/climate/analyze", response_model=ClimateAnalysisResponse)
+def analyze_climate(request: ClimateAnalysisRequest):
+    
+    global contador  # Declare contador as global to modify it within the function
+
+    try:
+        result = run_climate_analysis(
+            field_id=request.field_id,
+            field_name=request.field_name,
+            location=request.location.model_dump(),
+            start_date=request.analysis_period.start_date.isoformat(),
+            end_date=request.analysis_period.end_date.isoformat()
+        )
+        
+        contador += 1
+        print(f"Análise de clima realizada com sucesso. Total de análises: {contador}")
+
+        return result
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=502,
+            detail=str(error)
+        ) from error

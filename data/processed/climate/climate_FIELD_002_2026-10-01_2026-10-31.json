@@ -1,0 +1,82 @@
+{
+    "api": {
+        "name": "Agro Intelligence",
+        "version": "1.0.0"
+    },
+    "field": {
+        "field_id": "FIELD_002",
+        "field_name": "Machamba Experimental"
+    },
+    "metadata": {
+        "source": "NASA POWER",
+        "temporal_resolution": "daily",
+        "time_standard": "UTC",
+        "generated_at": "2026-11-19T16:21:48.018806+00:00"
+    },
+    "location": {
+        "country": "Angola",
+        "province": "Huambo",
+        "municipality": "Caala",
+        "latitude": -13.9427,
+        "longitude": 15.6606
+    },
+    "analysis_period": {
+        "start_date": "2026-10-01",
+        "end_date": "2026-10-31",
+        "total_days": 31
+    },
+    "data_quality": {
+        "status": "complete",
+        "expected_days": 31,
+        "variables": {
+            "PRECTOTCORR": {
+                "available_days": 31,
+                "missing_days": 0,
+                "coverage_percentage": 100.0
+            },
+            "T2M": {
+                "available_days": 31,
+                "missing_days": 0,
+                "coverage_percentage": 100.0
+            },
+            "T2M_MAX": {
+                "available_days": 31,
+                "missing_days": 0,
+                "coverage_percentage": 100.0
+            },
+            "T2M_MIN": {
+                "available_days": 31,
+                "missing_days": 0,
+                "coverage_percentage": 100.0
+            },
+            "RH2M": {
+                "available_days": 31,
+                "missing_days": 0,
+                "coverage_percentage": 100.0
+            }
+        }
+    },
+    "indicators": {
+        "precipitation": {
+            "total": 78.02,
+            "unit": "mm",
+            "days_with_data": 31,
+            "days_without_data": 0
+        },
+        "temperature": {
+            "average": 23.87,
+            "highest": 34.91,
+            "lowest": 15.7,
+            "unit": "°C"
+        },
+        "humidity": {
+            "average": 57.01,
+            "unit": "%"
+        },
+        "rainfall": {
+            "rainy_days": 31,
+            "days_without_rain": 0,
+            "days_without_data": 0
+        }
+    }
+}
